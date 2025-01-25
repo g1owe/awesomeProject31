@@ -5,6 +5,7 @@ import (
 	"awesomeProject3/events"
 	"awesomeProject3/lib/e"
 	"awesomeProject3/storage"
+	"awesomeProject3/storage/SQLite"
 	"errors"
 )
 
@@ -24,7 +25,7 @@ var (
 	ErrUnknownMetaType  = errors.New("незнакомый тип меты")
 )
 
-func New(client *telegram.Client, storage storage.Storage) *Processor {
+func New(client *telegram.Client, storage *sqlite.Storage) *Processor {
 	return &Processor{
 		tg:      client,
 		storage: storage,
@@ -34,16 +35,17 @@ func (p *Processor) Fetch(limit int) ([]events.Event, error) {
 
 	updates, err := p.tg.Updates(p.offset, limit)
 	if err != nil {
-		return nil, e.WrapIfErr("низя получить обновления", err)
+		return nil, e.Wrap("низя получить обновления", err)
 	}
 	if len(updates) == 0 {
 		return nil, nil
 	}
 	res := make([]events.Event, 0, len(updates))
+
 	for _, u := range updates {
 		res = append(res, event(u))
 	}
-	p.offset = updates[len(updates)-1].ID
+	p.offset = updates[len(updates)-1].ID + 1
 	return res, nil
 }
 
@@ -53,7 +55,7 @@ func (p *Processor) Process(event events.Event) error {
 	case events.Message:
 		return p.processMessage(event)
 	default:
-		return e.WrapIfErr("низя обработать", ErrUnknownEventType)
+		return e.Wrap("низя обработать", ErrUnknownEventType)
 	}
 }
 
@@ -61,10 +63,10 @@ func (p *Processor) processMessage(event events.Event) error {
 
 	meta, err := meta(event)
 	if err != nil {
-		return e.WrapIfErr("низя обработать сообщение", err)
+		return e.Wrap("низя обработать сообщение", err)
 	}
 	if err := p.doCmd(event.Text, meta.ChatID, meta.Username); err != nil {
-		return e.WrapIfErr("низя обработать сообщение", err)
+		return e.Wrap("низя обработать сообщение", err)
 	}
 	return nil
 }
@@ -77,8 +79,9 @@ func meta(event events.Event) (Meta, error) {
 }
 func event(upd telegram.Update) events.Event {
 	updType := fetchType(upd)
+
 	res := events.Event{
-		Type: fetchType(upd),
+		Type: updType,
 		Text: fetchText(upd),
 	}
 	if updType == events.Message {
@@ -89,15 +92,17 @@ func event(upd telegram.Update) events.Event {
 	}
 	return res
 }
-func fetchType(upd telegram.Update) events.Type {
-	if upd.Message == nil {
-		return events.Unknown
-	}
-	return events.Message
-}
+
 func fetchText(upd telegram.Update) string {
 	if upd.Message == nil {
 		return ""
 	}
 	return upd.Message.Text
+}
+
+func fetchType(upd telegram.Update) events.Type {
+	if upd.Message == nil {
+		return events.Unknown
+	}
+	return events.Message
 }

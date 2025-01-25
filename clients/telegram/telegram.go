@@ -10,16 +10,16 @@ import (
 	"strconv"
 )
 
-const (
-	getUpdatesMethod  = "getUpdates"
-	sendMessageMethod = "sendMessage"
-)
-
 type Client struct {
 	host     string
 	basePath string
 	client   http.Client
 }
+
+const (
+	getUpdatesMethod  = "getUpdates"
+	sendMessageMethod = "sendMessage"
+)
 
 func New(host string, token string) *Client {
 	return &Client{
@@ -31,6 +31,27 @@ func New(host string, token string) *Client {
 func newBasePath(token string) string {
 	return "bot" + token
 }
+
+func (c *Client) Updates(offset int, limit int) (updates []Update, err error) {
+	defer func() { err = e.WrapIfErr("низя получать обновления", err) }()
+
+	q := url.Values{}
+	q.Add("offset", strconv.Itoa(offset))
+	q.Add("limit", strconv.Itoa(limit))
+
+	data, err := c.doRequest(getUpdatesMethod, q)
+	if err != nil {
+		return nil, err
+	}
+
+	var res UpdateResponse
+
+	if err := json.Unmarshal(data, &res); err != nil {
+		return nil, err
+	}
+	return res.Result, nil
+}
+
 func (c *Client) SendMessage(chatID int, text string) error {
 	q := url.Values{}
 	q.Add("chat_id", strconv.Itoa(chatID))
@@ -41,20 +62,7 @@ func (c *Client) SendMessage(chatID int, text string) error {
 	}
 	return nil
 }
-func (c *Client) Updates(offset int, limit int) ([]Update, error) {
-	q := url.Values{}
-	q.Add("offset", strconv.Itoa(offset))
-	q.Add("limit", strconv.Itoa(limit))
-	data, err := c.doRequest(getUpdatesMethod, q)
-	if err != nil {
-		return nil, err
-	}
-	var res UpdateResponse
-	if err := json.Unmarshal(data, &res); err != nil {
-		return nil, err
-	}
-	return res.Result, nil
-}
+
 func (c *Client) doRequest(method string, query url.Values) (data []byte, err error) {
 	defer func() { err = e.WrapIfErr("низя запросики кидать", err) }()
 	u := url.URL{
@@ -66,6 +74,7 @@ func (c *Client) doRequest(method string, query url.Values) (data []byte, err er
 	if err != nil {
 		return nil, err
 	}
+
 	req.URL.RawQuery = query.Encode()
 
 	resp, err := c.client.Do(req)

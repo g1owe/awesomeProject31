@@ -2,24 +2,39 @@ package main
 
 import (
 	tgClient "awesomeProject3/clients/telegram"
-	event_consumer "awesomeProject3/consumer/event-consumer"
+	"awesomeProject3/consumer/event-consumer"
 	"awesomeProject3/events/telegram"
-	"awesomeProject3/storage/files"
+	"awesomeProject3/storage/SQLite"
+	"context"
+	"database/sql"
 	"flag"
 	"log"
 )
 
 const (
-	tgBotHost   = "api.telegram.org"
-	storagePath = "storage"
-	batchSize   = 10
+	tgBotHost         = "api.telegram.org"
+	sqliteStoragePath = "C:\\Users\\glowe\\database.db"
+	batchSize         = 100
 )
 
 func main() {
+	db, err := sql.Open("sqlite3", "storage.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+	//s := files.New(storagePath)
+	s, err := sqlite.New(sqliteStoragePath)
+	if err != nil {
+		log.Fatal("низя создать хранилище", err)
+	}
+	if err := s.Init(context.TODO()); err != nil {
+		log.Fatal("низя инициализировать хранилище", err)
+	}
 
 	eventsProcessor := telegram.New(
 		tgClient.New(tgBotHost, mustToken()),
-		files.New(storagePath),
+		s,
 	)
 
 	log.Print("началась возня")
@@ -29,10 +44,22 @@ func main() {
 	if err := consumer.Start(); err != nil {
 		log.Fatal("ботик сдох(((", err)
 	}
+
+	rows, err := db.Query("SELECT name FROM sqlite_master WHERE type='table' AND name='kotiki'")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		log.Println("Таблица storage не существует")
+		return
+	}
 }
 func mustToken() string {
 	token := flag.String(
-		"tg1-bot-token",
+		"tg-bot-token",
 		"",
 		"token nice to tg bot ",
 	)

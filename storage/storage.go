@@ -2,6 +2,7 @@ package storage
 
 import (
 	"awesomeProject3/lib/e"
+	"context"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -11,10 +12,10 @@ import (
 var ErrNoSavedPages = errors.New("низя найти сохраненные страницы")
 
 type Storage interface {
-	Save(p *Page) error
-	PickRandom(UserName string) (*Page, error)
-	Remove(p *Page) error
-	IsExists(p *Page) (bool, error)
+	Save(cts context.Context, p *Page) error
+	PickRandom(ctx context.Context, UserName string) (*Page, error)
+	Remove(ctx context.Context, p *Page) error
+	IsExists(ctx context.Context, p *Page) (bool, error)
 }
 type Page struct {
 	URL      string
